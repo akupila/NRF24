@@ -66,6 +66,9 @@ class NRF24
 		bool broadcast(char *message);
 		bool broadcast_P(const __FlashStringHelper *message);
 
+		bool send(uint8_t targetAddress, uint8_t *data, uint8_t length);
+		bool send(uint8_t targetAddress, char *message);
+
 		uint8_t available(uint8_t *listener = NULL);
 		uint8_t read(uint8_t *buf, uint8_t bufferSize);		// raw data
 		uint8_t read(char *buf, uint8_t bufferSize);		// makes sure data is 0 terminated
@@ -92,7 +95,7 @@ class NRF24
 		void writeRegister(uint8_t reg, uint8_t value);
 		void writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes);
 
-		bool transmit(uint8_t *data, uint8_t length, bool ack = true);
+		bool transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool ack = true);
 
 		void assembleFullAddress(uint8_t address, uint8_t buf[5]);
 
@@ -101,6 +104,7 @@ class NRF24
 
 		uint8_t ownAddress;
 		bool listening;
+		uint8_t previousTXAddress;
 
 		uint32_t netmask;
 		uint8_t numPipes;

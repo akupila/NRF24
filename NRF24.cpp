@@ -73,6 +73,7 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	// no pipe activated
 	previousPipe = -1;
 	numPipes = 0;
+	previousTXAddress = 0;
 
 	// Clear any pending data
 	flushRX();
@@ -204,15 +205,7 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length)
 	// what's the point of transmitting 0 bytes? :)
 	if (length == 0) return false;
 
-	// send data "to ourselves" - anybody listening to our address will receive this
-	uint8_t buf[5];
-	assembleFullAddress(ownAddress, buf);
-
-	writeRegister(TX_ADDR, buf, 5);
-
-	// RX address doesn't matter as we won't receive an ACK anyway
-
-	return transmit(data, length, false);
+	return transmit(ownAddress, data, length, false);
 }
 
 /********************************************************/
@@ -230,6 +223,16 @@ bool NRF24::broadcast_P(const __FlashStringHelper *message)
 	char buffer[32];
 	memcpy_P(buffer, message, 32);
 	return broadcast(buffer);
+}
+
+/********************************************************/
+
+bool NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length)
+{
+	// Both TX and RX on pipe 0 must match the target address
+	// RX is required to receive ACK
+
+
 }
 
 /********************************************************/
@@ -457,12 +460,30 @@ void NRF24::writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes)
 
 /*********************************************************/
 
-bool NRF24::transmit(uint8_t *data, uint8_t length, bool ack)
+bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool ack)
 {
 	// Assumes addressing has been set up before
 
 	// max 32 bytes allowed
 	if (length > 32) length = 32;
+
+	// we only need to update the TX address if it's changed
+	if (previousTXAddress != ownAddress)
+	{
+		// send data "to ourselves" - anybody listening to our address will receive this
+		uint8_t buf[5];
+		assembleFullAddress(ownAddress, buf);
+
+		writeRegister(TX_ADDR, buf, 5);
+
+		// RX address doesn't matter if we won't receive an ACK
+		if (ack)
+		{
+			writeRegister(RX_ADDR_P0, buf, 5);
+		}
+
+		previousTXAddress = ownAddress;
+	}
 
 	writeRegister(STATUS, readRegister(STATUS) | RX_DR | TX_DS | MAX_RT);
 
