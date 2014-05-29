@@ -202,13 +202,11 @@ nrf24_pa_level_e NRF24::getPowerAmplificationLevel()
 
 bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
 {
+	// what's the point of transmitting 0 bytes? :)
 	if (length == 0) return false;
 
 	// max 32 bytes allowed
 	if (length > 32) length = 32;
-
-	// todo: needed?
-	ceLow();
 
 	// send data "to ourselves" - anybody listening to our address will receive this
 	// todo: disable ack?
@@ -248,14 +246,20 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
 
 	// -------
 
+	// Technically we could exit at this point and separately listen to the the interrupt
+	// To keep things simple let's block this though and just poll the register
+
 	uint32_t now = millis();
 	bool txComplete = false;
 	bool maxRetriesPassed = false;
 	uint8_t status;
 	do
 	{
-		// todo: actually not necessary to read the STATUS reg as any read will return status. Can skip one byte this way :)
-		status = readRegister(STATUS);
+		// Any SPI write will return the status register so we can save a byte by not having to input the status address
+		// Huge performance improvement! (not really, but why not)
+		csnLow();
+		status = SPI.transfer(NOP);
+		csnHigh();
 		txComplete = status & TX_DS;
 		maxRetriesPassed = status & MAX_RT;
 	}
