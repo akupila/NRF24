@@ -54,7 +54,8 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	writeRegister(ACTIVATE, 0x73);
 
 	// to keep things simple we only support dynamic payloads so enable this feature with payloads
-	writeRegister(FEATURE, readRegister(FEATURE) | EN_DPL);
+	// allow no-ack payloads too for broadcast
+	writeRegister(FEATURE, readRegister(FEATURE) | EN_DPL | EN_DYN_ACK);
 
 	// enable auto ack on all pipes, required for dynamic payloads
 	writeRegister(EN_AA, ENAA_P0 | ENAA_P1 | ENAA_P2 | ENAA_P3 | ENAA_P4 | ENAA_P5);
@@ -213,7 +214,7 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length)
 		setActiveTXPipe(0);
 	}
 
-	return transmit(data, length);
+	return transmit(data, length, false);
 }
 
 /********************************************************/
@@ -453,7 +454,7 @@ void NRF24::writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes)
 
 /*********************************************************/
 
-bool NRF24::transmit(uint8_t *data, uint8_t length)
+bool NRF24::transmit(uint8_t *data, uint8_t length, bool ack)
 {
 	// Assumes addressing has been set up before
 
@@ -475,7 +476,14 @@ bool NRF24::transmit(uint8_t *data, uint8_t length)
 
 	// transfer payload data to FIFO
 	csnLow();
-	SPI.transfer(W_TX_PAYLOAD);
+	if (ack)
+	{
+		SPI.transfer(W_TX_PAYLOAD);
+	}
+	else
+	{
+		SPI.transfer(W_TX_PAYLOAD_NO_ACK);
+	}
 	while (length--)
 	{
 		SPI.transfer(*data++);

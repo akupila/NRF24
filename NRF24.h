@@ -59,12 +59,15 @@ class NRF24
 		void setPowerAmplificationLevel(nrf24_pa_level_e level);
 		nrf24_pa_level_e getPowerAmplificationLevel();
 
+		// Broadcast to any listeners. As multiple may be listening ACK is disabled and there's no way to know if the message was actually received
+		// See send() for transmitting more reliably but only to single node
+		// returns false if send failed for some reason
 		bool broadcast(uint8_t *data, uint8_t length);
 		bool broadcast(char *message);
 		bool broadcast_P(const __FlashStringHelper *message);
 
-		void transmit(uint8_t targetAddress, uint8_t *message, uint8_t length);
-		void transmit(uint8_t targetAddress, char *message);
+		// void transmit(uint8_t targetAddress, uint8_t *message, uint8_t length);
+		// void transmit(uint8_t targetAddress, char *message);
 
 		uint8_t available(uint8_t *listener = NULL);
 		uint8_t read(uint8_t *buf, uint8_t bufferSize);		// raw data
@@ -92,7 +95,7 @@ class NRF24
 		void writeRegister(uint8_t reg, uint8_t value);
 		void writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes);
 
-		bool transmit(uint8_t *data, uint8_t length);
+		bool transmit(uint8_t *data, uint8_t length, bool ack = true);
 
 		void assembleFullAddress(uint8_t address, uint8_t buf[5]);
 
