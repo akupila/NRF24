@@ -67,7 +67,10 @@ class NRF24
 		bool broadcast_P(const __FlashStringHelper *message);
 
 		bool send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t *numAttempts = NULL);
+		int8_t send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t *responseBuffer, uint8_t bufferSize, uint8_t *numAttempts = NULL);
 		bool send(uint8_t targetAddress, char *message);
+
+		bool queueResponse(uint8_t *data, uint8_t length);
 
 		uint8_t available(uint8_t *listener = NULL);
 		uint8_t read(uint8_t *buf, uint8_t bufferSize);		// raw data

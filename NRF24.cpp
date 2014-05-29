@@ -56,7 +56,8 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 
 	// to keep things simple we only support dynamic payloads so enable this feature with payloads
 	// allow no-ack payloads too for broadcast
-	writeRegister(FEATURE, readRegister(FEATURE) | EN_DPL | EN_DYN_ACK);
+	// and of course payloads in ACK packets
+	writeRegister(FEATURE, readRegister(FEATURE) | EN_DPL | EN_ACK_PAY | EN_DYN_ACK);
 
 	// enable auto ack on all pipes, required for dynamic payloads
 	writeRegister(EN_AA, ENAA_P0 | ENAA_P1 | ENAA_P2 | ENAA_P3 | ENAA_P4 | ENAA_P5);
@@ -79,7 +80,7 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	previousTXAddress = 0;
 
 	// enable ACK by default as it results in much more reliable transmission (at the expense of ~30% less throughput)
-	ackEnabled = true;
+	setACKEnabled(true);
 
 	// Clear any pending data
 	flushRX();
@@ -253,12 +254,67 @@ bool NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t *
 
 /********************************************************/
 
+int8_t NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t *responseBuffer, uint8_t bufferSize, uint8_t *numAttempts)
+{
+	// Clear any old data from FIFO
+	flushRX();
+
+	// send as normal, then see if the ACK contained a payload
+	bool sent = send(targetAddress, data, length, NULL);
+
+	if (!sent) return -1;
+
+	// no point looking for ACK payload if ack was disabled
+	if (ackEnabled)
+	{
+		csnLow();
+		bool ackPayloadAvailable = SPI.transfer(NOP) & RX_DR;
+		csnHigh();
+
+		if (!ackPayloadAvailable)
+		{
+			return 0;
+		}
+
+		return read(responseBuffer, bufferSize);
+	}
+}
+
+/********************************************************/
+
 bool NRF24::send(uint8_t targetAddress, char *message)
 {
 	// Both TX and RX on pipe 0 must match the target address
 	// RX is required to receive ACK
 
 	return send(targetAddress, (uint8_t *)message, strlen(message) + 1, NULL);
+}
+
+/********************************************************/
+
+bool NRF24::queueResponse(uint8_t *data, uint8_t length)
+{
+	if (length > 32) length = 32;
+
+	// must be listening to access ACK FIFO
+	bool wasListening = listening;
+	if (!listening) startListening();
+
+	// first check if the FIFO is already full
+	if (readRegister(FIFO_STATUS) & TX_FULL) return false;
+
+	// all good, clock in the data
+	csnLow();
+	SPI.transfer(W_ACK_PAYLOAD);
+	while (length--)
+	{
+		SPI.transfer(*data++);
+	}
+	csnHigh();
+
+	if (!wasListening) stopListening();
+
+	return true;
 }
 
 /********************************************************/
