@@ -67,7 +67,7 @@ class NRF24
 		void transmit(uint8_t targetAddress, char *message);
 
 		uint8_t available(uint8_t *listener = NULL);
-		uint8_t read(uint8_t *buf, uint8_t bufferSize);	// raw data
+		uint8_t read(uint8_t *buf, uint8_t bufferSize);		// raw data
 		uint8_t read(char *buf, uint8_t bufferSize);		// makes sure data is 0 terminated
 
 		void setActive(bool active);
@@ -80,9 +80,6 @@ class NRF24
 
 		void setRetries(uint8_t delay, uint8_t count);
 		void setCRCMode(nrf24_crc_mode_e mode);
-
-		// Debugging
-		void printRegister(const uint8_t reg);
 
 	private:
 		void ceHigh()  { *cePort |= ceBitMask;    };

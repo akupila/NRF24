@@ -21,10 +21,11 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	SPI.begin();
 	// note: when using a prototype board with long wires it may be better to switch to /4 for better signal integrity
 	// maximum clock frequency for NRF24L01+ is 10MHz
-	SPI.setClockDivider(SPI_CLOCK_DIV2);
-
-	ceLow();
+	SPI.setClockDivider(SPI_CLOCK_DIV4);
 	csnHigh();
+
+	// Put us in a known state: power down mode
+	ceLow();
 
 	// the 4 high bits on the address are the netmask
 	netmask = _netmask;
@@ -45,19 +46,21 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	setCRCMode(NRF24_CRC_16BIT);
 
 	// Must match on both ends
+	// When using 2MBPS datarate the channels should be at least 2MHz apart
 	setChannel(76);
 
 	// Activate features - otherwise we can't modify the FEATURES registry
+	// 0x73 is a magic number from the datasheet
 	writeRegister(ACTIVATE, 0x73);
 
 	// to keep things simple we only support dynamic payloads so enable this feature with payloads
 	writeRegister(FEATURE, readRegister(FEATURE) | EN_DPL);
 
 	// enable auto ack on all pipes, required for dynamic payloads
-	writeRegister(EN_AA, 0x3F);
+	writeRegister(EN_AA, ENAA_P0 | ENAA_P1 | ENAA_P2 | ENAA_P3 | ENAA_P4 | ENAA_P5);
 
 	// enable dynamic payload on all pipes
-	writeRegister(DYNPD, 0x3F);
+	writeRegister(DYNPD, DPL_P0 | DPL_P1 | DPL_P2 | DPL_P3 | DPL_P4 | DPL_P5);
 
 	// set address width to 5 bytes
 	writeRegister(SETUP_AW, 0x3);
@@ -74,288 +77,6 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	flushTX();
 
 	return false;
-}
-
-/*********************************************************/
-
-void NRF24::printRegister(const uint8_t reg)
-{
-// #define INCLUDE_RESERVED_REG
-
-	uint8_t config = readRegister(reg);
-	switch (reg)
-	{
-		case CONFIG:
-			Serial.println(F("CONFIG register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-#endif
-				Serial.print(F("  MASK_RX_DR  : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  MASK_TX_DS  : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  MASK_MAX_RT : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  EN_CRC      : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  CRCO        : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  PWR_UP      : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  PRIM_RX     : ")); Serial.println((config >> 0) & 1);
-			break;
-		case EN_AA:
-			Serial.println(F("EN_AA (Enaable Auto ACK) register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-#endif
-				Serial.print(F("  EN_AA_P5    : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  EN_AA_P4    : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  EN_AA_P3    : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  EN_AA_P2    : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  EN_AA_P1    : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  EN_AA_P0    : ")); Serial.println((config >> 0) & 1);
-			break;
-		case EN_RXADDR:
-			Serial.println(F("EN_RXADDR (Enable RX addresses) register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-#endif
-				Serial.print(F("  ERX_P5      : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  ERX_P4      : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  ERX_P3      : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  ERX_P2      : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  ERX_P1      : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  ERX_P0      : ")); Serial.println((config >> 0) & 1);
-			break;
-		case SETUP_AW:
-			Serial.println(F("SETUP_AW (Setup address widths) register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 2) & 1);
-#endif
-				Serial.print(F("  AW 1        : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  AW 0        : ")); Serial.print((config >> 0) & 1);
-					Serial.print(F(" ("));
-					Serial.print(config & 0x3);
-					Serial.println(F(")"));
-			break;
-		case SETUP_RETR:
-			Serial.println(F("SETUP_RETR (Setup of Automatic retransmission) register:"));
-				Serial.print(F("  ARD 3       : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  ARD 2       : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  ARD 1       : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  ARD 0       : ")); Serial.print((config >> 4) & 1); 
-					Serial.print(F(" ("));
-					Serial.print((config >> 4) & 0xF);
-					Serial.print(F(" - "));
-					Serial.print(((config >> 4) & 0xF) * 250 + 250);
-					Serial.println(F("uS delay)"));
-				Serial.print(F("  ARC 3       : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  ARC 2       : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  ARC 1       : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  ARC 0       : ")); Serial.print((config >> 0) & 1);
-					Serial.print(F(" ("));
-					Serial.print(config & 0xF);
-					Serial.println(F(" retransmissions)"));
-			break;
-		case RF_CH:
-			Serial.println(F("RF_CH (RF channel) register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-#endif
-				Serial.print(F("  RF_CH 6     : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  RF_CH 5     : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  RF_CH 4     : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  RF_CH 3     : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  RF_CH 2     : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  RF_CH 1     : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  RF_CH 0     : ")); Serial.print((config >> 0) & 1);
-					Serial.print(F(" (channel "));
-					Serial.print(config);
-					Serial.print(F(", "));
-					Serial.print(2400 + config);
-					Serial.println(F("MHz)"));
-			break;
-		case RF_SETUP:
-		{
-			Serial.println(F("RF_SETUP register:"));
-				Serial.print(F("  CONT_WAVE   : ")); Serial.println((config >> 7) & 1);
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-#endif
-				Serial.print(F("  RF_DR_LOW   : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  PLL_LOCK    : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  RF_DR_HIGH  : ")); Serial.print((config >> 3) & 1);
-					Serial.print(F(" ("));
-					bool highBit = (config >> RF_DR_LOW) & 1;
-					bool lowBit = (config >> RF_DR_HIGH) & 1;
-					Serial.print( ( highBit << 1) | lowBit );
-					Serial.println(F(")"));
-				Serial.print(F("  RF_PWR 1    : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  RF_PWR 2    : ")); Serial.print((config >> 1) & 1);
-					Serial.print(F(" ("));
-					highBit = (config >> RF_PA_HIGH) & 1;
-					lowBit = (config >> RF_PA_LOW) & 1;
-					Serial.print( ( highBit << 1) | lowBit );
-					Serial.println(F(")"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  obsolete    : ")); Serial.println((config >> 0) & 1);
-#endif
-			break;
-		}
-		case STATUS:
-		{
-			Serial.println(F("STATUS register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-#endif
-				Serial.print(F("  RX_DR       : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  TX_DS       : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  MAX_RT      : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  RX_P_NO 2   : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  RX_P_NO 1   : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  RX_P_NO 0   : ")); Serial.print((config >> 1) & 1);
-					uint8_t rx_p_no = (config >> 1) & 0x7;
-					if (rx_p_no < 0x5)
-					{
-						Serial.print(F(" (Data available on pipe "));
-						Serial.print(rx_p_no);
-						Serial.println(F(")"));
-					}
-					else
-					{
-						Serial.println(F(" (RX FIFO empty)"));
-					}
-				Serial.print(F("  TX_FULL     : ")); Serial.println((config >> 0) & 1);
-			break;
-		}
-		case OBSERVE_TX:
-			Serial.println(F("OBSERVE_TX (Transmit observe) register:"));
-				Serial.print(F("  PLOS_CNT 4  : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  PLOS_CNT 3  : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  PLOS_CNT 2  : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  PLOS_CNT 1  : ")); Serial.print((config >> 4) & 1);
-					Serial.print(F(" ("));
-					Serial.print((config >> 4));
-					Serial.print(F(" lost packets"));
-					Serial.println(F(")"));
-				Serial.print(F("  ARC_CNT 3   : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  ARC_CNT 2   : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  ARC_CNT 1   : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  ARC_CNT 0   : ")); Serial.print((config >> 0) & 1);
-					Serial.print(F(" ("));
-					Serial.print(config & 0xF);
-					Serial.println(F(" retransmitted packets)"));
-			break;
-		case RPD:
-			Serial.println(F("RDP (Receive Power Detector) register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 1) & 1);
-#endif
-				Serial.print(F("  RPD         : ")); Serial.println((config >> 0) & 1);
-			break;
-		case RX_PW_P0:
-		case RX_PW_P1:
-		case RX_PW_P2:
-		case RX_PW_P3:
-		case RX_PW_P4:
-		case RX_PW_P5:
-		{
-			uint8_t pipe = reg - RX_PW_P0;
-			Serial.print(F("RX_PW_P"));
-			Serial.print(pipe);
-			Serial.print(F(""));
-			Serial.print(F(" (RX payload in pipe "));
-			Serial.print(pipe);
-			Serial.println(F(") register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-#endif
-				for (uint8_t i = 7; i > 0; i--)
-				{
-					Serial.print(F("  RX_PW_P")); 
-					Serial.print(pipe); 
-					Serial.print(F(" "));
-					Serial.print(i - 1);
-					Serial.print(F("   : "));
-					Serial.print((config >> (i - 1)) & 1);
-					if (i > 1) Serial.println();
-				}
-				Serial.print(F(" ("));
-				uint8_t data = config & 0x7F;
-				if (data == 0)
-				{
-					Serial.print(F("Not used"));
-				}
-				else
-				{
-					Serial.print(data);
-					Serial.print(F(" uint8_ts"));
-				}
-				Serial.println(F(")"));
-			break;
-		}
-		case FIFO_STATUS:
-			Serial.println(F("FIFO_STATUS register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-#endif
-				Serial.print(F("  TX_REUSE    : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  TX_FULL     : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  TX_EMPTY    : ")); Serial.println((config >> 4) & 1);
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 2) & 1);
-#endif
-				Serial.print(F("  RX_FULL     : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  RX_EMPTY    : ")); Serial.println((config >> 0) & 1);
-			break;
-		case DYNPD:
-			Serial.println(F("DYNPD (Dynamic payload length enabled) register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-#endif
-				Serial.print(F("  DPL_P5      : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  DPL_P4      : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  DPL_P3      : ")); Serial.println((config >> 3) & 1);
-				Serial.print(F("  DPL_P2      : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  DPL_P1      : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  DPL_P0      : ")); Serial.println((config >> 0) & 1);
-			break;
-		case FEATURE:
-			Serial.println(F("FEATURE register:"));
-#ifdef INCLUDE_RESERVED_REG
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 7) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 6) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 5) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 4) & 1);
-				Serial.print(F("  reserved    : ")); Serial.println((config >> 3) & 1);
-#endif
-				Serial.print(F("  EN_DPL      : ")); Serial.println((config >> 2) & 1);
-				Serial.print(F("  EN_ACK_PAY  : ")); Serial.println((config >> 1) & 1);
-				Serial.print(F("  EN_DYN_ACK  : ")); Serial.println((config >> 0) & 1);
-			break;
-		default:
-		{
-			Serial.println(F("Unknown register:"));
-				for (uint8_t i = 8; i > 0; i--)
-				{
-					Serial.print(F("  bit "));
-					Serial.print(i - 1);
-					Serial.print(F("       : "));
-					Serial.println(((config >> i) - 1) & 1);
-				}
-			break;
-		}
-	}
 }
 
 /*********************************************************/
@@ -510,8 +231,6 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
 	// go into PRX mode
 	writeRegister(CONFIG, config);
 
-	bool txFailed = false;
-
 	// transfer payload data to FIFO
 	csnLow();
 	SPI.transfer(W_TX_PAYLOAD);
@@ -547,15 +266,10 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
 	);
 
 	// interrupt has now occurred, status register updated
+	// we'll clear this interrupt on next transmission
 
-	// clear interrupt so we can get a new one
-	// writeRegister(STATUS, status | TX_DS | MAX_RT);
-
-	if (!txComplete)
-	{
-		// transmit of this packet failed, no ACK from the other side after attempts set in setRetries()
-		txFailed = true;
-	}
+	// If txComplete is false it means the transmission failed after all the attempts set in setRetries().
+	// No ACK was received
 
 	// switch to Standby-I
 	ceLow();
@@ -567,11 +281,11 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
 	}
 	else
 	{
-		// return back to RX if we were there before, otherwise to Standby 1
+		// return back to RX if we were there before, otherwise to Standby 1 (ce low)
 		if (listening) startListening();
 	}
 
-	return !txFailed;
+	return txComplete;
 }
 
 /********************************************************/
@@ -620,8 +334,11 @@ uint8_t NRF24::read(uint8_t *buf, uint8_t bufferSize)
 	ceLow();
 
 	uint8_t payloadSize = readRegister(R_RX_PL_WID);
+
+	// make sure we don't overflow the buffer
 	if (bufferSize > payloadSize) bufferSize = payloadSize;
 
+	// fetch data from fifo
 	csnLow();
 	SPI.transfer(R_RX_PAYLOAD);
 	while (bufferSize--)
@@ -635,8 +352,6 @@ uint8_t NRF24::read(uint8_t *buf, uint8_t bufferSize)
 
 	// continue listening
 	ceHigh();
-
-	bool moreDataAvailable = !(readRegister(FIFO_STATUS) & RX_EMPTY);
 
 	return payloadSize;
 }
@@ -659,11 +374,10 @@ void NRF24::setActive(bool active)
 	if (active) config |= PWR_UP;
 	writeRegister(CONFIG, config);
 
-	// todo: needed / good idea?
-	if (!active)
-	{
-		ceLow();
-	}
+	// Need to wait for activation. Datasheet says this should be controlled by MCU so let's be good citizens
+	// Actually only 150uS is required with external oscillator (likely) but let's be on the safe side and
+	// use 1.5mS which is the delay when using the internal oscillator
+	delayMicroseconds(1500);
 }
 
 /********************************************************/
@@ -677,7 +391,7 @@ bool NRF24::getActive()
 
 nrf24_mode_e NRF24::getCurrentMode()
 {
-	// Determine state. based on page 22 in datasheet
+	// Determine state. based on page 22, 23 in datasheet
 	// Requirements:
 	//   power down:	PWR_UP=0
 	//   stamdby 1:		PWR_UP=1, CE=0
@@ -720,13 +434,13 @@ void NRF24::startListening()
 	// Transition to RX mode
 	ceHigh();
 
-	// make sure we start from a clean slate
+	// Make sure we start from a clean slate
 	flushRX();
 	flushTX();
 
 	listening = true;
 
-	// we're in RX mode in 130uS. No point blocking this though
+	// We're in RX mode in 130uS. No point blocking this though
 }
 
 /********************************************************/
@@ -737,10 +451,11 @@ void NRF24::stopListening()
 	writeRegister(CONFIG, readRegister(CONFIG) & ~PRIM_RX & ~PWR_UP);
 	ceLow();
 
-	// clear out any remaining data
+	// Clear any remaining data from FIFOs
 	flushRX();
 	flushTX();
 
+	// Store state so we know what to transition to in the future
 	listening = false;
 }
 
@@ -748,7 +463,11 @@ void NRF24::stopListening()
 
 void NRF24::setRetries(uint8_t delay, uint8_t count)
 {
-	writeRegister(SETUP_RETR, ((delay & 0xF) << 4) | (count & 0xF));
+	// Delay between retries: delay * 250uS + 258uS
+	// Count how many times to try before giving up. Max 15
+	if (delay > 0xF) delay = 0xF;
+	if (count > 0xF) count = 0xF;
+	writeRegister(SETUP_RETR, (delay << 4) | count);
 }
 
 /********************************************************/

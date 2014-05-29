@@ -34,17 +34,14 @@ void loop()
 	if (tx)
 	{
 		Serial.print(F("Sending.. "));
-
-		bool ok = radio.broadcast_P(F("Hey there!"));
-		Serial.println(ok ? "OK" : "failed");
-		delay(100);
+		bool ok = radio.broadcast("Hello world of wireless!");
+		Serial.println(ok ? "OK" : "faisled");
+		delay(1000);
 	}
 	else if (radio.available())
 	{
 		char buf[32];
 		uint8_t bytes = radio.read(buf, sizeof(buf));
-		Serial.print(bytes);
-		Serial.print(F(": "));
 		Serial.println(buf);
 	}
 }
