@@ -449,12 +449,15 @@ void NRF24::startListening()
 	writeRegister(STATUS, RX_DR | TX_DS | MAX_RT);
 
 	// we might have sent data before which caused pipe0 to get the target address
-	// restore our own address
-	uint8_t buf[5];
-	assembleFullAddress(ownAddress, buf);
-	writeRegister(RX_ADDR_P0, buf, 5);
+	if (previousRXAddress != ownAddress)
+	{
+		// restore our own address
+		uint8_t buf[5];
+		assembleFullAddress(ownAddress, buf);
+		writeRegister(RX_ADDR_P0, buf, 5);
 
-	previousRXAddress = ownAddress;
+		previousRXAddress = ownAddress;
+	}
 
 	// Transition to RX mode
 	ceHigh();
@@ -592,14 +595,20 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 
 	uint8_t config = readRegister(CONFIG);
 	bool wasActive = config & PWR_UP;
+	bool wasListening = listening;
 
-	if (!wasActive) delay(2);	// wait to enter Standby-I mode
+	// Need to go through Standby-I in order to transition to TX
+	ceLow();
+
+	// stopListening();
 
 	config |= PWR_UP;	// set to active to enable transmission
 	config &= ~PRIM_RX;	// disable rx mode (aka enable tx mode)
 
 	// go into PTX mode
 	writeRegister(CONFIG, config);
+
+	if (!wasActive) delay(2);	// wait to enter Standby-I mode
 
 	// transfer payload data to FIFO
 	csnLow();
@@ -669,7 +678,7 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 	else
 	{
 		// return back to RX if we were there before, otherwise to Standby 1 (ce low)
-		if (listening) startListening();
+		if (wasListening) startListening();
 	}
 
 	return txComplete;

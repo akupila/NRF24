@@ -89,6 +89,8 @@ class NRF24
 
 		void setACKEnabled(bool ack = true);
 
+		uint8_t ownAddress;
+
 	private:
 		void ceHigh()  { *cePort |= ceBitMask;    };
 		void ceLow()   { *cePort &= ~ceBitMask;   };
@@ -107,7 +109,7 @@ class NRF24
 		void flushTX();
 		void flushRX();
 
-		uint8_t ownAddress;
+		
 		bool listening;
 		uint8_t previousTXAddress;
 		uint8_t previousRXAddress;
