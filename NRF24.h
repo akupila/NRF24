@@ -8,13 +8,6 @@
 
 typedef enum
 {
-	NRF24_NO_INTERRUPT = 0,
-	NRF24_INTERRUPT_1,
-	NRF24_INTERRUPT_2
-} nrf24_interrupt_e;
-
-typedef enum
-{
 	NRF24_NO_CRC = 0,
 	NRF24_CRC_8BIT,
 	NRF24_CRC_16BIT
@@ -22,10 +15,10 @@ typedef enum
 
 typedef enum
 {
-	NRF24_PA_MAX = 0,
-	NRF24_PA_HIGH,
-	NRF24_PA_MID,
-	NRF24_PA_LOW
+	NRF24_PA_MAX = 0,		//  0dBm	/	11.3mA transmit
+	NRF24_PA_HIGH,			// -6dBm	/	9mA transmit
+	NRF24_PA_MID,			// -12dBm	/	7.5mA transmit
+	NRF24_PA_LOW			// -18dBm	/	7.0mA transmit
 } nrf24_pa_level_e;
 
 typedef enum
@@ -47,9 +40,11 @@ typedef enum
 class NRF24
 {
 	public:
+		// Netmask should be something "random"
+		// All nodes that talk to eachother need to have the same netmask
+		// 10101010.. can continue on preamble and cause missed packets
+		// 11110000.. with only one logic transition can cause missed packets
 		bool begin(uint8_t cePin, uint8_t csnPin, uint32_t netmask = 0xC2C2C2C2);
-
-		void setInterruptEnabled(nrf24_interrupt_e interrupt);
 
 		// Logical RF channels
 		void setAddress(uint8_t address);

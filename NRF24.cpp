@@ -19,7 +19,9 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	csnBitMask = digitalPinToBitMask(csnPin);
 
 	SPI.begin();
-	SPI.setClockDivider(SPI_CLOCK_DIV8); // todo: this is required for the wired arduino with crappy signals
+	// note: when using a prototype board with long wires it may be better to switch to /4 for better signal integrity
+	// maximum clock frequency for NRF24L01+ is 10MHz
+	SPI.setClockDivider(SPI_CLOCK_DIV2);
 
 	ceLow();
 	csnHigh();
@@ -30,22 +32,19 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	// wait for 'power on reset'
 	delay(100);
 
-	for (uint8_t i = 0; i < 10; i++)
-	{
-		ceHigh();
-		ceLow();
-	}
-
 	// Some initial values
 	setRetries(15, 15);
 
+	// Set maximum output power
 	setPowerAmplificationLevel(NRF24_PA_MAX);
 
+	// Must match on both ends
 	setDataRate(NRF24_2MBPS);
 
+	// Must match on both ends
 	setCRCMode(NRF24_CRC_16BIT);
 
-	// This must match on transmitter and receiver
+	// Must match on both ends
 	setChannel(76);
 
 	// Activate features - otherwise we can't modify the FEATURES registry
