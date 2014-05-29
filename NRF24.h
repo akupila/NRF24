@@ -59,7 +59,7 @@ class NRF24
 		void setPowerAmplificationLevel(nrf24_pa_level_e level);
 		nrf24_pa_level_e getPowerAmplificationLevel();
 
-		bool broadcast(uint8_t *data, uint8_t length, uint32_t timeout = 1000);
+		bool broadcast(uint8_t *data, uint8_t length);
 		bool broadcast(char *message);
 		bool broadcast_P(const __FlashStringHelper *message);
 
@@ -91,6 +91,8 @@ class NRF24
 		uint8_t readRegister(uint8_t reg);
 		void writeRegister(uint8_t reg, uint8_t value);
 		void writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes);
+
+		bool transmit(uint8_t *data, uint8_t length);
 
 		void assembleFullAddress(uint8_t address, uint8_t buf[5]);
 

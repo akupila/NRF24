@@ -200,13 +200,10 @@ nrf24_pa_level_e NRF24::getPowerAmplificationLevel()
 
 /********************************************************/
 
-bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
+bool NRF24::broadcast(uint8_t *data, uint8_t length)
 {
 	// what's the point of transmitting 0 bytes? :)
 	if (length == 0) return false;
-
-	// max 32 bytes allowed
-	if (length > 32) length = 32;
 
 	// send data "to ourselves" - anybody listening to our address will receive this
 	// todo: disable ack?
@@ -216,80 +213,7 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length, uint32_t timeout)
 		setActiveTXPipe(0);
 	}
 
-	writeRegister(STATUS, readRegister(STATUS) | RX_DR | TX_DS | MAX_RT);
-
-	uint8_t config = readRegister(CONFIG);
-	bool wasActive = config & PWR_UP;
-
-	if (!wasActive) delay(2);	// wait to enter Standby-I mode
-
-	config |= PWR_UP;	// set to active to enable transmission
-	config &= ~PRIM_RX;	// disable rx mode (aka enable tx mode)
-
-	// go into PRX mode
-	writeRegister(CONFIG, config);
-
-	// transfer payload data to FIFO
-	csnLow();
-	SPI.transfer(W_TX_PAYLOAD);
-	while (length--)
-	{
-		SPI.transfer(*data++);
-	}
-	csnHigh();
-
-	// need to wait for PLL to start
-	delayMicroseconds(150); // actually 130uS according to datasheet but let's give us a bit of leeway..
-
-	// transmit!
-	ceHigh();
-
-	// -------
-
-	// Technically we could exit at this point and separately listen to the the interrupt
-	// To keep things simple let's block this though and just poll the register
-
-	uint32_t now = millis();
-	bool txComplete = false;
-	bool maxRetriesPassed = false;
-	uint8_t status;
-	do
-	{
-		// Any SPI write will return the status register so we can save a byte by not having to input the status address
-		// Huge performance improvement! (not really, but why not)
-		csnLow();
-		status = SPI.transfer(NOP);
-		csnHigh();
-		txComplete = status & TX_DS;
-		maxRetriesPassed = status & MAX_RT;
-	}
-	while (
-		!txComplete && 
-		!maxRetriesPassed &&
-		millis() < now + timeout
-	);
-
-	// interrupt has now occurred, status register updated
-	// we'll clear this interrupt on next transmission
-
-	// If txComplete is false it means the transmission failed after all the attempts set in setRetries().
-	// No ACK was received
-
-	// switch to Standby-I
-	ceLow();
-
-	if (!wasActive)
-	{
-		// switch to power down
-		setActive(false);
-	}
-	else
-	{
-		// return back to RX if we were there before, otherwise to Standby 1 (ce low)
-		if (listening) startListening();
-	}
-
-	return txComplete;
+	return transmit(data, length);
 }
 
 /********************************************************/
@@ -525,6 +449,93 @@ void NRF24::writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes)
 		SPI.transfer(*value++);
 	}
 	csnHigh();
+}
+
+/*********************************************************/
+
+bool NRF24::transmit(uint8_t *data, uint8_t length)
+{
+	// Assumes addressing has been set up before
+
+	// max 32 bytes allowed
+	if (length > 32) length = 32;
+
+	writeRegister(STATUS, readRegister(STATUS) | RX_DR | TX_DS | MAX_RT);
+
+	uint8_t config = readRegister(CONFIG);
+	bool wasActive = config & PWR_UP;
+
+	if (!wasActive) delay(2);	// wait to enter Standby-I mode
+
+	config |= PWR_UP;	// set to active to enable transmission
+	config &= ~PRIM_RX;	// disable rx mode (aka enable tx mode)
+
+	// go into PRX mode
+	writeRegister(CONFIG, config);
+
+	// transfer payload data to FIFO
+	csnLow();
+	SPI.transfer(W_TX_PAYLOAD);
+	while (length--)
+	{
+		SPI.transfer(*data++);
+	}
+	csnHigh();
+
+	// need to wait for PLL to start
+	delayMicroseconds(150); // actually 130uS according to datasheet but let's give us a bit of leeway..
+
+	// transmit!
+	ceHigh();
+
+	// -------
+
+	// Technically we could exit at this point and separately listen to the the interrupt
+	// To keep things simple let's block this though and just poll the register
+
+	// the timeout can occur if the chip isn't responding, shouldn't happen if everything is in order
+	static const uint16_t timeout = 500;
+	uint32_t txStarted = millis();
+	bool txComplete = false;
+	bool maxRetriesPassed = false;
+	uint8_t status;
+	do
+	{
+		// Any SPI write will return the status register so we can save a byte by not having to input the status address
+		// Huge performance improvement! (not really, but why not)
+		csnLow();
+		status = SPI.transfer(NOP);
+		csnHigh();
+		txComplete = status & TX_DS;
+		maxRetriesPassed = status & MAX_RT;
+	}
+	while (
+		!txComplete && 
+		!maxRetriesPassed &&
+		millis() < txStarted + timeout
+	);
+
+	// interrupt has now occurred, status register updated
+	// we'll clear this interrupt on next transmission
+
+	// If txComplete is false it means the transmission failed after all the attempts set in setRetries().
+	// No ACK was received
+
+	// switch to Standby-I
+	ceLow();
+
+	if (!wasActive)
+	{
+		// switch to power down
+		setActive(false);
+	}
+	else
+	{
+		// return back to RX if we were there before, otherwise to Standby 1 (ce low)
+		if (listening) startListening();
+	}
+
+	return txComplete;
 }
 
 /*********************************************************/
