@@ -156,6 +156,7 @@ void setup()
 	else
 	{
 		// set our address
+		// note the address of the received, we'll need it later on!
 		radio.setAddress(0xD2);
 		radio.startListening();
 	}
@@ -169,7 +170,7 @@ void loop()
 	if (tx)
 	{
 		Serial.print(F("Sending.. "));
-		bool sent = radio.send(0xD2, "Hello 0xEE!");
+		bool sent = radio.send(0xD2, "Hello there receiver 0xD2!");	// make sure the first parameter matches the receiver's address
 		Serial.println(sent ? "OK" : "failed");
 		delay(1000);
 	}
