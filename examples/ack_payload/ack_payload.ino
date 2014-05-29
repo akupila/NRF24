@@ -55,7 +55,7 @@ void loop()
 		}
 		else if (received == 0)
 		{
-			Serial.println(F("ok but but payload in ACK"));
+			Serial.println(F("ok but no payload in ACK"));
 		}
 		else
 		{
