@@ -35,7 +35,7 @@ void loop()
 	{
 		Serial.print(F("Sending.. "));
 		bool ok = radio.broadcast("Hello world of wireless!");
-		Serial.println(ok ? "OK" : "faisled");
+		Serial.println(ok ? "OK" : "failed");
 		delay(1000);
 	}
 	else if (radio.available())
