@@ -66,7 +66,7 @@ class NRF24
 		bool broadcast(char *message);
 		bool broadcast_P(const __FlashStringHelper *message);
 
-		bool send(uint8_t targetAddress, uint8_t *data, uint8_t length);
+		bool send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t *numAttempts = NULL);
 		bool send(uint8_t targetAddress, char *message);
 
 		uint8_t available(uint8_t *listener = NULL);
@@ -83,6 +83,8 @@ class NRF24
 
 		void setRetries(uint8_t delay, uint8_t count);
 		void setCRCMode(nrf24_crc_mode_e mode);
+
+		void setACKEnabled(bool ack = true);
 
 	private:
 		void ceHigh()  { *cePort |= ceBitMask;    };
@@ -105,6 +107,9 @@ class NRF24
 		uint8_t ownAddress;
 		bool listening;
 		uint8_t previousTXAddress;
+		uint8_t previousRXAddress;
+
+		bool ackEnabled;
 
 		uint32_t netmask;
 		uint8_t numPipes;

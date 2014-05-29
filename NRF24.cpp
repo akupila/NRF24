@@ -70,10 +70,16 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	// clear interrupt flags
 	writeRegister(STATUS, readRegister(STATUS) | RX_DR | TX_DS | MAX_RT);
 
+	// save power until needed
+	setActive(false);
+
 	// no pipe activated
 	previousPipe = -1;
 	numPipes = 0;
 	previousTXAddress = 0;
+
+	// enable ACK by default as it results in much more reliable transmission (at the expense of ~30% less throughput)
+	ackEnabled = true;
 
 	// Clear any pending data
 	flushRX();
@@ -93,6 +99,8 @@ void NRF24::setAddress(uint8_t address)
 
 	// pipe 0 is our own address
 	writeRegister(RX_ADDR_P0, buf, 5);
+
+	previousRXAddress = address;
 
 	// make sure pipe 0 is enabled
 	writeRegister(EN_RXADDR, readRegister(EN_RXADDR) | 0x01);
@@ -228,10 +236,19 @@ bool NRF24::broadcast_P(const __FlashStringHelper *message)
 
 /********************************************************/
 
-bool NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length)
+bool NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t *numAttempts)
 {
 	// transmit to address, expect ACK
-	transmit(targetAddress, data, length, true);
+	bool sent = transmit(targetAddress, data, length, ackEnabled);
+
+	if (numAttempts)
+	{
+		// Read number of attempts
+		uint8_t observe = readRegister(OBSERVE_TX);
+		*numAttempts = observe & 0xF;
+	}
+
+	return sent;
 }
 
 /********************************************************/
@@ -241,7 +258,7 @@ bool NRF24::send(uint8_t targetAddress, char *message)
 	// Both TX and RX on pipe 0 must match the target address
 	// RX is required to receive ACK
 
-	send(targetAddress, (uint8_t *)message, strlen(message) + 1);
+	return send(targetAddress, (uint8_t *)message, strlen(message) + 1, NULL);
 }
 
 /********************************************************/
@@ -381,6 +398,8 @@ void NRF24::startListening()
 	assembleFullAddress(ownAddress, buf);
 	writeRegister(RX_ADDR_P0, buf, 5);
 
+	previousRXAddress = ownAddress;
+
 	// Transition to RX mode
 	ceHigh();
 
@@ -431,6 +450,14 @@ void NRF24::setCRCMode(nrf24_crc_mode_e mode)
 	config |= EN_CRC;
 	if (mode == NRF24_CRC_16BIT) config |= CRCO;
 	writeRegister(CONFIG, config);
+}
+
+/********************************************************/
+
+void NRF24::setACKEnabled(bool ack)
+{
+	// automatically does magic on transmission
+	ackEnabled = ack;
 }
 
 
@@ -494,10 +521,12 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 	}
 
 	// RX address doesn't matter if we won't receive an ACK
-	if (ack)
+	if (ack && previousRXAddress != targetAddress)
 	{
 		assembleFullAddress(targetAddress, buf);
 		writeRegister(RX_ADDR_P0, buf, 5);
+
+		previousRXAddress = targetAddress;
 
 		// note that pipe0 now has the target address; this is required to receive the ACK
 		// when we call startListening() our own address gets restored
@@ -532,23 +561,27 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 	}
 	csnHigh();
 
-	// need to wait for PLL to start
-	delayMicroseconds(150); // actually 130uS according to datasheet but let's give us a bit of leeway..
-
 	// transmit!
 	ceHigh();
+
+	// PLL takes 130uS to start up
 
 	// -------
 
 	// Technically we could exit at this point and separately listen to the the interrupt
 	// To keep things simple let's block this though and just poll the register
 
+	// Could also poll the IRQ pin (if connected) but there doesn't seem to be a huge performance benefit so let's keep things simple
+
+	// If we wanted even higher throughput we'd upload more data to the FIFO during transmission. 
+	// This becomes quite messy and is very much and edge case so this is not supported.
+
 	// the timeout can occur if the chip isn't responding, shouldn't happen if everything is in order
 	static const uint16_t timeout = 500;
 	uint32_t txStarted = millis();
 	bool txComplete = false;
 	bool maxRetriesPassed = false;
-	uint8_t status;
+	static uint8_t status;
 	do
 	{
 		// Any SPI write will return the status register so we can save a byte by not having to input the status address
@@ -556,12 +589,10 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 		csnLow();
 		status = SPI.transfer(NOP);
 		csnHigh();
-		txComplete = status & TX_DS;
-		maxRetriesPassed = status & MAX_RT;
 	}
 	while (
-		!txComplete && 
-		!maxRetriesPassed &&
+		!(txComplete = status & TX_DS) && 
+		!(maxRetriesPassed = status & MAX_RT) &&
 		millis() < txStarted + timeout
 	);
 
