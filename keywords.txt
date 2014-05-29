@@ -1,0 +1,56 @@
+#######################################
+# Syntax Coloring Map For NRF24 Library
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+radio	KEYWORD1
+NRF24	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+setAddress	KEYWORD2
+listenToAddress	KEYWORD2
+setChannel	KEYWORD2
+getChannel	KEYWORD2
+setDataRate	KEYWORD2
+setPowerAmplificationLevel	KEYWORD2
+getPowerAmplificationLevel	KEYWORD2
+broadcast	KEYWORD2
+broadcast_P	KEYWORD2
+send	KEYWORD2
+queueResponse	KEYWORD2
+available	KEYWORD2
+read	KEYWORD2
+setActive	KEYWORD2
+getCurrentMode	KEYWORD2
+startListening	KEYWORD2
+stopListening	KEYWORD2
+setRetries	KEYWORD2
+setCRCMode	KEYWORD2
+setACKEnabled	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+NRF24_NO_CRC	LITERAL1
+NRF24_CRC_8BIT	LITERAL1
+NRF24_CRC_16BIT	LITERAL1
+NRF24_PA_MAX	LITERAL1
+NRF24_PA_HIGH	LITERAL1
+NRF24_PA_MID	LITERAL1
+NRF24_PA_LOW	LITERAL1
+NRF24_250KBPS	LITERAL1
+NRF24_1MBPS	LITERAL1
+NRF24_2MBPS	LITERAL1
+NRF24_MODE_POWER_DOWN	LITERAL1
+NRF24_MODE_STANDBY1	LITERAL1
+NRF24_MODE_STANDBY2	LITERAL1
+NRF24_MODE_RX	LITERAL1
+NRF24_MODE_TX	LITERAL1
