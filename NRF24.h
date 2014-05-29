@@ -99,12 +99,10 @@ class NRF24
 
 		void assembleFullAddress(uint8_t address, uint8_t buf[5]);
 
-		void setActiveTXPipe(uint8_t index);
-
 		void flushTX();
 		void flushRX();
 
-		uint8_t pipeAddresses[5];
+		uint8_t ownAddress;
 		bool listening;
 
 		uint32_t netmask;

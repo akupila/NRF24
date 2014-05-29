@@ -21,7 +21,7 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	SPI.begin();
 	// note: when using a prototype board with long wires it may be better to switch to /4 for better signal integrity
 	// maximum clock frequency for NRF24L01+ is 10MHz
-	SPI.setClockDivider(SPI_CLOCK_DIV4);
+	SPI.setClockDivider(SPI_CLOCK_DIV8);
 	csnHigh();
 
 	// Put us in a known state: power down mode
@@ -84,16 +84,13 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 
 void NRF24::setAddress(uint8_t address)
 {
+	ownAddress = address;
+
 	uint8_t buf[5];
 	assembleFullAddress(address, buf);
 
 	// pipe 0 is our own address
 	writeRegister(RX_ADDR_P0, buf, 5);
-
-	// need to set tx address to match
-	writeRegister(TX_ADDR, buf, 5);
-
-	pipeAddresses[0] = address;
 }
 
 /********************************************************/
@@ -207,12 +204,12 @@ bool NRF24::broadcast(uint8_t *data, uint8_t length)
 	if (length == 0) return false;
 
 	// send data "to ourselves" - anybody listening to our address will receive this
-	// todo: disable ack?
-	if (previousPipe != 0)
-	{
-		// need to set pipe 0 as active pipe
-		setActiveTXPipe(0);
-	}
+	uint8_t buf[5];
+	assembleFullAddress(ownAddress, buf);
+
+	writeRegister(TX_ADDR, buf, 5);
+
+	// RX address doesn't matter as we won't receive an ACK anyway
 
 	return transmit(data, length, false);
 }
@@ -275,6 +272,11 @@ uint8_t NRF24::read(uint8_t *buf, uint8_t bufferSize)
 		*buf++ = SPI.transfer(NOP);
 	}
 	csnHigh();
+
+	if (*(buf - payloadSize) == 0)
+	{
+		// SOMETIMES we end up here even if the transmission is identical
+	}
 
 	// clear RX bit so we can receive more data
 	writeRegister(STATUS, readRegister(STATUS) | RX_DR);
@@ -555,21 +557,6 @@ void NRF24::assembleFullAddress(uint8_t address, uint8_t buf[5])
 	buf[2] = (netmask >> 8) & 0xFF;
 	buf[1] = (netmask >> 0) & 0xFF;
 	buf[0] = address;
-}
-
-/*********************************************************/
-
-void NRF24::setActiveTXPipe(uint8_t index)
-{
-	if (index == previousPipe) return;
-
-	uint8_t buf[5];
-	assembleFullAddress(pipeAddresses[index], buf);
-
-	writeRegister(TX_ADDR, buf, 5);
-	writeRegister(RX_ADDR_P0, buf, 5);
-
-	previousPipe = index;
 }
 
 /*********************************************************/
