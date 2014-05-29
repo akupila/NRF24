@@ -93,6 +93,9 @@ void NRF24::setAddress(uint8_t address)
 
 	// pipe 0 is our own address
 	writeRegister(RX_ADDR_P0, buf, 5);
+
+	// make sure pipe 0 is enabled
+	writeRegister(EN_RXADDR, readRegister(EN_RXADDR) | 0x01);
 }
 
 /********************************************************/
@@ -202,9 +205,7 @@ nrf24_pa_level_e NRF24::getPowerAmplificationLevel()
 
 bool NRF24::broadcast(uint8_t *data, uint8_t length)
 {
-	// what's the point of transmitting 0 bytes? :)
-	if (length == 0) return false;
-
+	// send data "to ourselves" - anybody listening to our address will receive this
 	return transmit(ownAddress, data, length, false);
 }
 
@@ -229,10 +230,18 @@ bool NRF24::broadcast_P(const __FlashStringHelper *message)
 
 bool NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length)
 {
+	// transmit to address, expect ACK
+	transmit(targetAddress, data, length, true);
+}
+
+/********************************************************/
+
+bool NRF24::send(uint8_t targetAddress, char *message)
+{
 	// Both TX and RX on pipe 0 must match the target address
 	// RX is required to receive ACK
 
-
+	send(targetAddress, (uint8_t *)message, strlen(message) + 1);
 }
 
 /********************************************************/
@@ -462,17 +471,17 @@ void NRF24::writeRegister(uint8_t reg, uint8_t *value, uint8_t numBytes)
 
 bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool ack)
 {
-	// Assumes addressing has been set up before
+	// what's the point of transmitting 0 bytes? :)
+	if (length == 0) return false;
 
 	// max 32 bytes allowed
 	if (length > 32) length = 32;
 
 	// we only need to update the TX address if it's changed
-	if (previousTXAddress != ownAddress)
+	if (previousTXAddress != targetAddress)
 	{
-		// send data "to ourselves" - anybody listening to our address will receive this
 		uint8_t buf[5];
-		assembleFullAddress(ownAddress, buf);
+		assembleFullAddress(targetAddress, buf);
 
 		writeRegister(TX_ADDR, buf, 5);
 
@@ -482,7 +491,7 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 			writeRegister(RX_ADDR_P0, buf, 5);
 		}
 
-		previousTXAddress = ownAddress;
+		previousTXAddress = targetAddress;
 	}
 
 	writeRegister(STATUS, readRegister(STATUS) | RX_DR | TX_DS | MAX_RT);
