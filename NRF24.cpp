@@ -21,7 +21,8 @@ bool NRF24::begin(uint8_t cePin, uint8_t csnPin, uint32_t _netmask)
 	SPI.begin();
 	// note: when using a prototype board with long wires it may be better to switch to /4 for better signal integrity
 	// maximum clock frequency for NRF24L01+ is 10MHz
-	SPI.setClockDivider(SPI_CLOCK_DIV8);
+	// sometimes data can be corrupted so try putting a slower clock if the results are unpredicatable/weird/etc
+	SPI.setClockDivider(SPI_CLOCK_DIV4);
 	csnHigh();
 
 	// Put us in a known state: power down mode
