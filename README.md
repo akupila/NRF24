@@ -3,7 +3,7 @@
 
 The NRF24L01+ is a tiny 2.4GHz wireless transciever that's easy to integrate into projects, is very flexible and easily available from resellers as breakout boards.
 
-There are several libraries for this chip online but this library has a couple things to differentiate it from the others. 
+There are several libraries for this chip online but this library has a couple things to differentiate it from the others. The biggest thing is that it doesn't require fixed payloads as almost all the other ones do. Everything is handled under the hood so you just send the data (up to 32 bytes) as you want.
 
 [Datasheet](http://www.nordicsemi.com/eng/content/download/2726/34069/file/nRF24L01P_Product_Specification_1_0.pdf)
 
