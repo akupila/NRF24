@@ -375,6 +375,12 @@ void NRF24::startListening()
 	writeRegister(CONFIG, readRegister(CONFIG) | PRIM_RX | PWR_UP);
 	writeRegister(STATUS, RX_DR | TX_DS | MAX_RT);
 
+	// we might have sent data before which caused pipe0 to get the target address
+	// restore our own address
+	uint8_t buf[5];
+	assembleFullAddress(ownAddress, buf);
+	writeRegister(RX_ADDR_P0, buf, 5);
+
 	// Transition to RX mode
 	ceHigh();
 
@@ -478,20 +484,23 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 	if (length > 32) length = 32;
 
 	// we only need to update the TX address if it's changed
+	uint8_t buf[5];
 	if (previousTXAddress != targetAddress)
 	{
-		uint8_t buf[5];
 		assembleFullAddress(targetAddress, buf);
-
 		writeRegister(TX_ADDR, buf, 5);
 
-		// RX address doesn't matter if we won't receive an ACK
-		if (ack)
-		{
-			writeRegister(RX_ADDR_P0, buf, 5);
-		}
-
 		previousTXAddress = targetAddress;
+	}
+
+	// RX address doesn't matter if we won't receive an ACK
+	if (ack)
+	{
+		assembleFullAddress(targetAddress, buf);
+		writeRegister(RX_ADDR_P0, buf, 5);
+
+		// note that pipe0 now has the target address; this is required to receive the ACK
+		// when we call startListening() our own address gets restored
 	}
 
 	writeRegister(STATUS, readRegister(STATUS) | RX_DR | TX_DS | MAX_RT);
@@ -504,7 +513,7 @@ bool NRF24::transmit(uint8_t targetAddress, uint8_t *data, uint8_t length, bool 
 	config |= PWR_UP;	// set to active to enable transmission
 	config &= ~PRIM_RX;	// disable rx mode (aka enable tx mode)
 
-	// go into PRX mode
+	// go into PTX mode
 	writeRegister(CONFIG, config);
 
 	// transfer payload data to FIFO
