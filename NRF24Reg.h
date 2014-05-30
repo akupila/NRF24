@@ -74,7 +74,7 @@
 #define ARC_CNT     0x01
 // FIFO_STATUS
 #define TX_REUSE    0x40
-#define TX_FULL     0x20
+#define TX_FULL_FIFO 0x20 // annoyingly this has the same mnemonic as in STATUS
 #define TX_EMPTY    0x10
 #define RX_FULL     0x02
 #define RX_EMPTY    0x01

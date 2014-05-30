@@ -278,6 +278,8 @@ int8_t NRF24::send(uint8_t targetAddress, uint8_t *data, uint8_t length, uint8_t
 
 		return read(responseBuffer, bufferSize);
 	}
+	
+	return 0;
 }
 
 /********************************************************/
@@ -301,7 +303,7 @@ bool NRF24::queueResponse(uint8_t *data, uint8_t length)
 	if (!listening) startListening();
 
 	// first check if the FIFO is already full
-	if (readRegister(FIFO_STATUS) & TX_FULL) return false;
+	if (readRegister(FIFO_STATUS) & TX_FULL_FIFO) return false;
 
 	// all good, clock in the data
 	csnLow();
